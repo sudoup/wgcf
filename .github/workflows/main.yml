@@ -1,0 +1,68 @@
+name: Build
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag (e.g., v1.0.0)'
+        required: true
+        type: string
+
+jobs:
+  build:
+    name: Build for ${{ matrix.os }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      matrix:
+        include:
+          - os: linux
+            runner: ubuntu-latest
+            goos: linux
+            goarch: amd64
+            output: wgcf-linux-amd64
+          - os: linux
+            runner: ubuntu-latest
+            goos: linux
+            goarch: 386
+            output: wgcf-linux-386
+          - os: linux
+            runner: ubuntu-latest
+            goos: linux
+            goarch: arm64
+            output: wgcf-linux-arm64
+          - os: windows
+            runner: ubuntu-latest
+            goos: windows
+            goarch: amd64
+            output: wgcf-windows-amd64.exe
+          - os: windows
+            runner: ubuntu-latest
+            goos: windows
+            goarch: 386
+            output: wgcf-windows-386.exe
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Build
+        env:
+          CGO_ENABLED: 0
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+        run: |
+          go build -ldflags="-s -w" -trimpath -o ${{ matrix.output }} .
+
+      - name: Upload to release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ inputs.tag }}
+          files: ${{ matrix.output }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
