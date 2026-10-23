@@ -20,10 +20,23 @@ var ErrExistingAccount = errors2.New("existing account detected, refusing to ove
 var ErrNoAccount = errors2.New("no account detected, register one first")
 var ErrTOSNotAccepted = errors2.New("TOS not accepted")
 
+type UserError struct {
+	message string
+}
+
+func (e *UserError) Error() string {
+	return e.message
+}
+
+func NewUserError(message string) error {
+	return &UserError{message: message}
+}
+
 func RunCommandFatal(cmd func() error) {
 	if err := cmd(); err != nil {
 		expectedErrs := []error{ErrNoAccount, ErrExistingAccount, ErrTOSNotAccepted}
-		if slices.ContainsFunc(expectedErrs, func(e error) bool { return errors.Is(err, e) }) {
+		var userError *UserError
+		if slices.ContainsFunc(expectedErrs, func(e error) bool { return errors.Is(err, e) }) || errors.As(err, &userError) {
 			log.Fatalln(err)
 		} else {
 			log.Fatalf("%+v\n", err)
@@ -79,6 +92,19 @@ func CreateContext() *config.Context {
 }
 
 func PrintAccountDetails(account *cloudflare.Account, boundDevices []cloudflare.BoundDevice) {
+	premiumData := uint64(0)
+	if account.PremiumData != nil {
+		premiumData = uint64(*account.PremiumData)
+	}
+	quota := uint64(0)
+	if account.Quota != nil {
+		quota = uint64(*account.Quota)
+	}
+	role := "N/A"
+	if account.Role != nil {
+		role = *account.Role
+	}
+
 	log.Println("Printing account details:")
 	fmt.Println()
 	fmt.Println("================================================================")
@@ -86,11 +112,9 @@ func PrintAccountDetails(account *cloudflare.Account, boundDevices []cloudflare.
 	fmt.Println("================================================================")
 	fmt.Printf("%-12s : %s\n", "Id", account.Id)
 	fmt.Printf("%-12s : %s\n", "Account type", account.AccountType)
-	fmt.Printf("%-12s : %s\n", "Created", account.Created)
-	fmt.Printf("%-12s : %s\n", "Updated", account.Updated)
-	fmt.Printf("%-12s : %s\n", "Premium data", humanize.Bytes(uint64(account.PremiumData)))
-	fmt.Printf("%-12s : %s\n", "Quota", humanize.Bytes(uint64(account.Quota)))
-	fmt.Printf("%-12s : %s\n", "Role", account.Role)
+	fmt.Printf("%-12s : %s\n", "Premium data", humanize.Bytes(premiumData))
+	fmt.Printf("%-12s : %s\n", "Quota", humanize.Bytes(quota))
+	fmt.Printf("%-12s : %s\n", "Role", role)
 	fmt.Println()
 	fmt.Println("================================================================")
 	fmt.Println("Devices")

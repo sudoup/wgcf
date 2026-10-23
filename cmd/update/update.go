@@ -7,6 +7,7 @@ import (
 	"github.com/ViRb3/wgcf/v2/cloudflare"
 	. "github.com/ViRb3/wgcf/v2/cmd/shared"
 	"github.com/ViRb3/wgcf/v2/config"
+	"github.com/ViRb3/wgcf/v2/wireguard"
 	"github.com/cockroachdb/errors"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -46,6 +47,9 @@ func updateAccount() error {
 
 	ctx := CreateContext()
 	if licenseKey != "" {
+		if wireguard.IsKey(licenseKey) {
+			return NewUserError("--license-key looks like a WireGuard private key; use it with `wgcf register --key`")
+		}
 		ctx.LicenseKey = licenseKey
 	}
 
@@ -53,9 +57,13 @@ func updateAccount() error {
 	if err != nil {
 		return errors.WithStack(err)
 	}
-	if account.License != ctx.LicenseKey {
+	accountLicense := ""
+	if account.License != nil {
+		accountLicense = *account.License
+	}
+	if accountLicense != ctx.LicenseKey {
 		log.Println("Updated license key detected, re-binding device to new account")
-		if _, err := cloudflare.UpdateLicenseKey(ctx); err != nil {
+		if err := cloudflare.UpdateLicenseKey(ctx); err != nil {
 			return errors.WithStack(err)
 		}
 		viper.Set(config.LicenseKey, ctx.LicenseKey)
